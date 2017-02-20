@@ -20,6 +20,7 @@ import math
 import time
 
 import numpy as np
+import scipy as sp
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
 from occupancy_field import OccupancyField
@@ -120,7 +121,6 @@ class ParticleFilter:
             map_proxy = rospy.ServiceProxy('static_map', GetMap)
             my_map = map_proxy().map
         #TODO: uncaught except
-        # for now we have commented out the occupancy field initialization until you can successfully fetch the map
         self.occupancy_field = OccupancyField(my_map)
         self.initialized = True
 
@@ -135,6 +135,8 @@ class ParticleFilter:
 
         # TODO: assign the lastest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
+        #The max likelihood particle is the mode of the distribution
+        mode = self.particle_cloud[np.argmax([p.w for p in self.particle_cloud])]
         self.robot_pose = Pose()
 
     def update_particles_with_odom(self, msg):
@@ -222,8 +224,15 @@ class ParticleFilter:
         if xy_theta == None:
             xy_theta = convert_pose_to_xy_and_theta(self.odom_pose.pose)
         self.particle_cloud = []
-        # TODO create particles
+        
+        #Uniform distribution over the bounding box defined by the map
+        #define the box as the convex hull of the points
+        #since we're dealing with an OccupancyGrid, we have a discretized, probabalistic view of space
+        #wrap the hull around the fiftieth percentile points
+        #TODO: scipy only implements Quickhull, do Chan's
 
+        sp.spatial.ConvexHull(self.occupancy_field.get_closest_obstacle_distance)
+        
         self.normalize_particles()
         self.update_robot_pose()
 
