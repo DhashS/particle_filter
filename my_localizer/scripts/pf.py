@@ -128,7 +128,9 @@ class ParticleFilter:
         try:
             map_proxy = rospy.ServiceProxy('static_map', GetMap)
             my_map = map_proxy().map
-        #TODO: uncaught except
+        except rospy.ServiceException, e:
+            rospy.loginfo("Service call failed: {}".format(e))
+
         self.occupancy_field = OccupancyField(my_map)
         self.initialized = True
 
@@ -142,9 +144,12 @@ class ParticleFilter:
         self.normalize_particles()
 
         # TODO: assign the lastest pose into self.robot_pose as a geometry_msgs.Pose object
-        # just to get started we will fix the robot's pose to always be at the origin
+        # just to get started we will fix the robot's pose to always be at the origin - pretty sure this does that
+        self.robot_pose = Pose(position=Point(x=0, y=0, z=0), orientation=Quaternion(x=0, y=0, z=0, w=0))
+
         #The max likelihood particle is the mode of the distribution
         mode = self.particle_cloud[np.argmax([p.w for p in self.particle_cloud])]
+        #do I just leave this as Pose() or do I put the mode into it somehow? make it out of mode okie doke
         self.robot_pose = Pose()
 
     def projected_scan_received(self, msg):
@@ -165,6 +170,7 @@ class ParticleFilter:
             delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
                      new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
                      new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
+            delta = np.array(delta)
 
             self.current_odom_xy_theta = new_odom_xy_theta
         else:
@@ -172,11 +178,20 @@ class ParticleFilter:
             return
 
         # TODO: modify particles using delta
+        modified_cloud = []
+        #read poses into numpy array and add delta to them, then convert back
+        #update particles with odometry
+        for p in self.particle_cloud:
+            weight = p.w
+            pose = np.array(convert_pose_to_xy_and_theta(p))
+            modified_cloud.append(Particle(*(pose + delta).tolist(), w=weight).as_pose())
+        self.particle_cloud = modified_cloud
         # For added difficulty: Implement sample_motion_odometry (Prob Rob p 136)
 
     def map_calc_range(self,x,y,theta):
         """ Difficulty Level 3: implement a ray tracing likelihood model... Let me know if you are interested """
         # TODO: nothing unless you want to try this alternate likelihood model
+        
         pass
 
     def resample_particles(self):
@@ -189,9 +204,18 @@ class ParticleFilter:
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
 
+        pass
+
+
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
         # TODO: implement this
+        # laser scan inputs and distance from particles @beta
+
+        for i, d in enumerate(msg.ranges):
+            self.particle_cloud[i]
+        
+
         pass
 
     @staticmethod
@@ -239,8 +263,10 @@ class ParticleFilter:
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        pass
         # TODO: implement this
+        [p.w for p in self.particle_cloud] = [p.w for p in self.particle_cloud]/np.argmax([p.w for p in self.particle_cloud])
+        for p in self.particle_cloud:
+            p.w = p.w/np.argmax([p.w for p in self.particle_cloud])
 
     def publish_particles(self, msg):
         particles_conv = []
