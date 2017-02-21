@@ -228,8 +228,6 @@ class ParticleFilter:
         
         #Uniform distribution over the bounding box defined by the map
         #define the box as the convex hull of the points
-        #since we're dealing with an OccupancyGrid, we have a discretized, probabalistic view of space
-        #wrap the hull around the fiftieth percentile points
         #TODO: scipy only implements Quickhull, do Chan's
 
         sp.spatial.ConvexHull(self.occupancy_field.get_closest_obstacle_distance)
@@ -239,8 +237,9 @@ class ParticleFilter:
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        pass
-        # TODO: implement this
+        weights = np.array([p.x for p in self.particle_cloud])
+        return weights/np.sum(weights)
+        
 
     def publish_particles(self, msg):
         particles_conv = []
