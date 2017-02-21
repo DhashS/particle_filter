@@ -21,6 +21,9 @@ import time
 import numpy as np
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import spectral_clustering
+
+import itertools
 
 class OccupancyField(object):
     """ Stores an occupancy field for an input map.  An occupancy field returns the distance to the closest
@@ -71,7 +74,53 @@ class OccupancyField(object):
                 ind = i + j*self.map.info.width
                 self.closest_occ[ind] = distances[curr][0]*self.map.info.resolution
                 curr += 1
+        
+        self.array_map = self.get_occ_grid(O)
+        self.occupied_cells = self.cluster(self.array_map)
 
+    def cluster(self, arr_map):
+        #fit a spectral cluster with two clusters with the data from the map
+        X = [(x, y, arr_map[x][y]) for x, y in np.ndindex(arr_map.shape)]
+        model = spectral_clustering(n_clusters=2, eigen_solver='arpack').fit(X)
+        
+        #which label in the trained model is the one that contains the walls?
+        g0, g1 = X[model.labels_ == 0], X[model.labels_ == 1]
+        #easy to determine given the average of the last column
+        if np.mean(g0.T[2]) > np.mean(g1.T[2]):
+            walls = g0
+            free_space = g1
+        else:
+            walls = g1
+            free_space = g0
+
+        #throw the prob away
+        return [(x,y) for x,y,_ in walls]
+
+
+    def is_occupied(self, x, y):
+        if (x, y) in self.occupied_cells:
+            return True
+        else:
+            return False
+
+
+    def get_occ_grid(self, O):
+        #is the cell occupied (returns prob)
+        idxr = lambda x, y: return O[x + y*self.map.info.width]
+
+        width = self.map.info.width
+        height = self.map.info.height
+        array_map = np.zeros((width, height))
+        
+        for x, y in np.ndindex(array_map.shape):
+            try:
+                prob_occupied = idxr(x, y)
+                array_map[x][y] = prob_occupied
+            except IndexError as e:
+                rospy.logdebug("occupancy grid not dense rectangle, missed {},{}. Padding with 0".format(x, y))
+
+        return array_map
+            
     def get_closest_obstacle_distance(self,x,y):
         """ Compute the closest obstacle to the specified (x,y) coordinate in the map.  If the (x,y) coordinate
             is out of the map boundaries, nan will be returned. """
