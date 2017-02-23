@@ -96,6 +96,8 @@ class ParticleFilter:
         self.laser_max_distance = 2.0   # maximum penalty to assess in the likelihood field model
 
         # TODO: define additional constants if needed
+        self.resampling = 50            # percentile of points we're cutting off and resampling
+        self.std_dev = .05              # standard deviation of generated particles in meters
 
         # Setup pubs and subs
 
@@ -142,15 +144,9 @@ class ParticleFilter:
         """
         # first make sure that the particle weights are normalized
         self.normalize_particles()
-
-        # TODO: assign the lastest pose into self.robot_pose as a geometry_msgs.Pose object
-        # just to get started we will fix the robot's pose to always be at the origin - pretty sure this does that
-        self.robot_pose = Pose(position=Point(x=0, y=0, z=0), orientation=Quaternion(x=0, y=0, z=0, w=0))
-
-        #The max likelihood particle is the mode of the distribution
         mode = self.particle_cloud[np.argmax([p.w for p in self.particle_cloud])]
-        #do I just leave this as Pose() or do I put the mode into it somehow? make it out of mode okie doke
-        self.robot_pose = Pose()
+        # we're defining the new alpha prime by the mode, not the mean
+        self.robot_pose = mode
 
     def projected_scan_received(self, msg):
         self.last_projected_stable_scan = msg
@@ -203,9 +199,19 @@ class ParticleFilter:
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
-
-        pass
-
+        # TODO: make a parameter in __init__ that is how agressivley we resample
+        #       then take self.particle cloud and eliminate the xth percentile of particles
+        #       make new particles with parameters over a cauchy distribution
+        #       centered around the mode of the distribution, width is parameterized
+        #       (maybe refactor the mode into a method)
+        #       and reassign them to self.particle_cloud
+        self.particle_cloud = [p for p in self.particle_cloud if p.w >= self.resampling/100]
+        num_new_needed = self.n_particles - len(self.particles)
+        # using mode in place of mean with Gaussian here
+        mu = convert_pose_to_xy_and_theta(self.robot_pose)
+        new_x = mu[0]
+        new_y = mu[1]
+        new_theta = mu[2]
 
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
@@ -266,11 +272,11 @@ class ParticleFilter:
         weights = np.array([p.x for p in self.particle_cloud])
         weigths = weights/np.sum(weights)
 
-	modified_cloud = []
-	for p, w in zip(self.particle_cloud, weights)
-	    p.w = w
-	    modified_cloud.append(p)
-	self.particle_cloud = modified_cloud
+        modified_cloud = []
+        for p, w in zip(self.particle_cloud, weights)
+            p.w = w
+            modified_cloud.append(p)
+        self.particle_cloud = modified_cloud
         
 
     def publish_particles(self, msg):
