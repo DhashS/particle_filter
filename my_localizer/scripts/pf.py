@@ -21,6 +21,7 @@ import time
 
 import numpy as np
 import scipy as sp
+from scipy.stats import cauchy
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
 from occupancy_field import OccupancyField
@@ -97,8 +98,18 @@ class ParticleFilter:
 
         # TODO: define additional constants if needed
         self.resampling = 50            # percentile of points we're cutting off and resampling
-        self.std_dev = .05              # standard deviation of generated particles in meters
-
+        xy_cauchy_gamma = 2             # gamma parameter of the cauchy distribution for x, y
+        theta_cauchy_gamma = 1          # gamma parameter of the cauchy distribution for theta
+        #bound the cauchy to sane levels
+        xy_cauchy_bounded = cauchy
+        xy_cauchy_bounded.a = -10
+        xy_cauchy_bounded.b = 10
+        theta_cauchy_bounded = cauchy
+        theta_cauchy_bounded.a = 0
+        theta_cauchy_bounded.b = 360
+    
+        self.xy_cauchy = lambda mu: xy_cauchy_bounded.rvs(loc=mu, scale=xy_cauchy_gamma)
+        self.theta_cauchy = lambda mu: theta_cauchy_bounded.rvs(loc=mu, scale=theta_cauchy_gamma) % 360
         # Setup pubs and subs
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
@@ -197,21 +208,24 @@ class ParticleFilter:
             function draw_random_sample.
         """
         # make sure the distribution is normalized
+        # This implementation does a percentile split
+        # TODO: We should change it to a random sample with draw_random_sample
         self.normalize_particles()
-        # TODO: fill out the rest of the implementation
-        # TODO: make a parameter in __init__ that is how agressivley we resample
-        #       then take self.particle cloud and eliminate the xth percentile of particles
-        #       make new particles with parameters over a cauchy distribution
-        #       centered around the mode of the distribution, width is parameterized
-        #       (maybe refactor the mode into a method)
-        #       and reassign them to self.particle_cloud
         self.particle_cloud = [p for p in self.particle_cloud if p.w >= self.resampling/100]
         num_new_needed = self.n_particles - len(self.particles)
-        # using mode in place of mean with Gaussian here
-        mu = convert_pose_to_xy_and_theta(self.robot_pose)
-        new_x = mu[0]
-        new_y = mu[1]
-        new_theta = mu[2]
+        per_particle_prob = (1-np.sum([p.w for p in self.particle_cloud])) / num_new_needed
+        # using mode in place of mean with Cauchy distribution
+        while num_new_needed > 0:
+            mu = convert_pose_to_xy_and_theta(self.robot_pose)
+            x, y, theta = mu
+            x = self.xy_cauchy(x)
+            y = self.xy_cauchy(y)
+            theta = self.theta_cauchy(theta)
+            new_particle = Particle(x, y, theta, w=per_particle_prob)
+            self.particle_cloud.append(new_particle)
+            num_new_needed -= 1
+        self.normalize_particles()
+
 
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
