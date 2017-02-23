@@ -106,7 +106,7 @@ class ParticleFilter:
         xy_cauchy_bounded.b = 10
         theta_cauchy_bounded = cauchy
         theta_cauchy_bounded.a = 0
-        theta_cauchy_bounded.b = 360
+        theta_cauchy_bounded.b = 720
     
         self.xy_cauchy = lambda mu: xy_cauchy_bounded.rvs(loc=mu, scale=xy_cauchy_gamma)
         self.theta_cauchy = lambda mu: theta_cauchy_bounded.rvs(loc=mu, scale=theta_cauchy_gamma) % 360
@@ -217,6 +217,7 @@ class ParticleFilter:
             new_particle = Particle(x, y, theta, w=per_particle_prob)
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
+
         self.normalize_particles()
 
 
@@ -224,12 +225,12 @@ class ParticleFilter:
         """ Updates the particle weights in response to the scan contained in the msg """
         # TODO: implement this
         # laser scan inputs and distance from particles @beta
-
-        for i, d in enumerate(msg.ranges):
-            self.particle_cloud[i]
-        
-
-        pass
+        # take the scan and convert it into cartesian
+        # rotate the scan
+        # translate the scan
+        # call get_distance_to_closest_particle a bunch and store
+        # normalize
+        # multiply with particle weights
 
     @staticmethod
     def draw_random_sample(choices, probabilities, n):
