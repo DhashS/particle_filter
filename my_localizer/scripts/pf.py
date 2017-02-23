@@ -184,22 +184,15 @@ class ParticleFilter:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # TODO: modify particles using delta
         modified_cloud = []
         #read poses into numpy array and add delta to them, then convert back
         #update particles with odometry
         for p in self.particle_cloud:
             weight = p.w
             pose = np.array(convert_pose_to_xy_and_theta(p))
-            modified_cloud.append(Particle(*(pose + delta).tolist(), w=weight).as_pose())
+            modified_cloud.append(Particle(*(pose + delta).tolist(), w=weight))
         self.particle_cloud = modified_cloud
         # For added difficulty: Implement sample_motion_odometry (Prob Rob p 136)
-
-    def map_calc_range(self,x,y,theta):
-        """ Difficulty Level 3: implement a ray tracing likelihood model... Let me know if you are interested """
-        # TODO: nothing unless you want to try this alternate likelihood model
-        
-        pass
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
