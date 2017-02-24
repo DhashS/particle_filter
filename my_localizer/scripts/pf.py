@@ -230,7 +230,10 @@ class ParticleFilter:
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
 
-        self.normalize_particles()
+    def pol2cart(rho, phi):
+        x = rho * np.cos(phi)
+        y = rho * np.sin(phi)
+    return(x, y)
 
     def rot_mat(theta):
         rotate = np.array([cos[theta],sin[theta]],[-sin[theta],cos[theta]])
