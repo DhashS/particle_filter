@@ -19,6 +19,8 @@ import math
 import time
 
 import numpy as np
+from scipy.spatial import ConvexHull
+
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import spectral_clustering
@@ -77,6 +79,8 @@ class OccupancyField(object):
         
         self.array_map = self.get_occ_grid(O)
         self.occupied_cells = self.cluster(self.array_map)
+        self.convex_hull = ConvexHull(self.occupied_cells)
+        self.convex_hull_points = self.convex_hull.verticies
 
     def cluster(self, arr_map):
         #fit a spectral cluster with two clusters with the data from the map
@@ -106,7 +110,7 @@ class OccupancyField(object):
 
     def get_occ_grid(self, O):
         #is the cell occupied (returns prob)
-        idxr = lambda x, y: return O[x + y*self.map.info.width]
+        idxr = lambda x, y: O[x + y*self.map.info.width]
 
         width = self.map.info.width
         height = self.map.info.height

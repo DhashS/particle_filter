@@ -22,7 +22,10 @@ import time
 import numpy as np
 import scipy as sp
 from scipy.stats import cauchy
+
+from matplotlib.path import Path
 from scipy.ndimage.interpolation import affine_transform
+
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
 from occupancy_field import OccupancyField
@@ -99,20 +102,7 @@ class ParticleFilter:
 
         # TODO: define additional constants if needed
         self.resampling = 50            # percentile of points we're cutting off and resampling
-        xy_cauchy_gamma = 2             # gamma parameter of the cauchy distribution for x, y
-        theta_cauchy_gamma = 1          # gamma parameter of the cauchy distribution for theta
-        #bound the cauchy to sane levels
-        xy_cauchy_bounded = cauchy
-        xy_cauchy_bounded.a = -10
-        xy_cauchy_bounded.b = 10
-        theta_cauchy_bounded = cauchy
-        theta_cauchy_bounded.a = 0
-        theta_cauchy_bounded.b = 720
-
-
-        self.xy_cauchy = lambda mu: xy_cauchy_bounded.rvs(loc=mu, scale=xy_cauchy_gamma)
-        self.theta_cauchy = lambda mu: theta_cauchy_bounded.rvs(loc=mu, scale=theta_cauchy_gamma) % 360
-        # Setup pubs and subs
+       # Setup pubs and subs
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         rospy.Subscriber("initialpose", PoseWithCovarianceStamped, self.update_initial_pose)
@@ -147,7 +137,28 @@ class ParticleFilter:
             rospy.loginfo("Service call failed: {}".format(e))
 
         self.occupancy_field = OccupancyField(my_map)
+        
+        #set up distributions across map
+        #use cauchy dist for squashing distribution down - robust
+        self.x_cauchy_gamma = rospy.get_param('~x_cauchy_gamma', 1)
+        self.y_cauchy_gamma = rospy.get_param('~y_cauchy_gamma', 1)
+        self.theta_cauchy_gamma = rospy.get_param('theta_cauchy_gamma', 3)
+
         self.initialized = True
+
+    @staticmethod
+    def xy_cauchy(mu):
+        in_poly = lambda pt: Path(self.occupancy_field.convex_hull_points).contains_point(pt)
+        while True:
+            sample = cauchy(loc=mu, scale=self.x_cauchy_gamma)
+            if in_poly(sample):
+                return sample
+
+    @staticmethod
+    def theta_cauchy(mu):
+         sample = cauchy.rvs(loc=mu, scale=self.theta_cauchy_gamma) % 360
+         return sample
+
 
     def update_robot_pose(self):
         """ Update the estimate of the robot's pose given the updated particles.
@@ -209,21 +220,17 @@ class ParticleFilter:
         self.particle_cloud = [p for p in self.particle_cloud if p.w >= self.resampling/100]
         num_new_needed = self.n_particles - len(self.particles)
         per_particle_prob = (1-np.sum([p.w for p in self.particle_cloud])) / num_new_needed
-        # using mode in place of mean with Cauchy distribution
+        # cauchy around current pose
         while num_new_needed > 0:
             mu = convert_pose_to_xy_and_theta(self.robot_pose)
             x, y, theta = mu
-            x = self.xy_cauchy(x)
-            y = self.xy_cauchy(y)
+            x, y = [self.xy_cauchy(p) for p in (x, y)]
             theta = self.theta_cauchy(theta)
             new_particle = Particle(x, y, theta, w=per_particle_prob)
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
 
-    def pol2cart(rho, phi):
-        x = rho * np.cos(phi)
-        y = rho * np.sin(phi)
-    return(x, y)
+        self.normalize_particles()
 
     def rot_mat(theta):
         rotate = np.array([cos[theta],sin[theta]],[-sin[theta],cos[theta]])
@@ -292,11 +299,21 @@ class ParticleFilter:
         
         #Uniform distribution over the bounding box defined by the map
         #define the box as the convex hull of the points
-        #since we're dealing with an OccupancyGrid, we have a discretized, probabalistic view of space
-        #wrap the hull around the fiftieth percentile points
-        #TODO: scipy only implements Quickhull, do Chan's
+        perim = self.occupancy_field.convex_hull_points
+        poly = Path(perim)
+        #column vector of all points
+        pts = np.array(perim)
 
-        sp.spatial.ConvexHull(self.occupancy_field.get_closest_obstacle_distance)
+        #uniform across bbox to do in-polygon check of hull
+        while len(self.particle_cloud) <= self.n_particles:
+            x, y = np.random.uniform(low=np.min(a), high=np.max(a), size=2)
+            theta = np.random.uniform(low=0, high=360)
+
+            #throw away point if not in hull
+            if not poly.contains_point((x, y)):
+                continue
+
+            self.particle_cloud.append(Particle(x,y,theta,w=1)) #will be normalized later
         
         self.normalize_particles()
         self.update_robot_pose()
@@ -307,7 +324,7 @@ class ParticleFilter:
         weigths = weights/np.sum(weights)
 
         modified_cloud = []
-        for p, w in zip(self.particle_cloud, weights)
+        for p, w in zip(self.particle_cloud, weights):
             p.w = w
             modified_cloud.append(p)
         self.particle_cloud = modified_cloud
