@@ -24,7 +24,6 @@ import scipy as sp
 from scipy.stats import cauchy
 
 from matplotlib.path import Path
-from scipy.ndimage.interpolation import affine_transform
 
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
@@ -102,19 +101,7 @@ class ParticleFilter:
 
         # TODO: define additional constants if needed
         self.resampling = 50            # percentile of points we're cutting off and resampling
-        xy_cauchy_gamma = 2             # gamma parameter of the cauchy distribution for x, y
-        theta_cauchy_gamma = 1          # gamma parameter of the cauchy distribution for theta
-        #bound the cauchy to sane levels
-        xy_cauchy_bounded = cauchy
-        xy_cauchy_bounded.a = -10
-        xy_cauchy_bounded.b = 10
-        theta_cauchy_bounded = cauchy
-        theta_cauchy_bounded.a = 0
-        theta_cauchy_bounded.b = 720
-    
-        self.xy_cauchy = lambda mu: xy_cauchy_bounded.rvs(loc=mu, scale=xy_cauchy_gamma)
-        self.theta_cauchy = lambda mu: theta_cauchy_bounded.rvs(loc=mu, scale=theta_cauchy_gamma) % 360
-        # Setup pubs and subs
+       # Setup pubs and subs
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         rospy.Subscriber("initialpose", PoseWithCovarianceStamped, self.update_initial_pose)
@@ -242,14 +229,8 @@ class ParticleFilter:
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
 
-    def pol2cart(rho, phi):
-        x = rho * np.cos(phi)
-        y = rho * np.sin(phi)
-    return(x, y)
+        self.normalize_particles()
 
-    def rot_mat(theta):
-        rotate = np.array([cos[theta],sin[theta]],[-sin[theta],cos[theta]])
-    return rotate
 
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
@@ -261,24 +242,6 @@ class ParticleFilter:
         # call get_distance_to_closest_particle a bunch and store
         # normalize
         # multiply with particle weights
-
-        distance = enumerate(msg.ranges[])
-        cartesian = []
-        for i in distance:
-            cartesian.append(pol2cart[i])
-        distance = cartesian
-
-        for i in self.particle_cloud:
-            adjust = convert_pose_to_xy_and_theta[i]
-            rotation = rot-mat(theta)
-            translation = [adjust[0],adjust[2]]
-            for j in distance:
-                transform = affine_transform(distance(j),rotation,translation)
-                closest = get_closest_obstacle_distance(transform)
-            close = np.sum(closest)/len(np.sum(closest))
-            i = Particle(transform[0], transform[1], transform[2], close)
-
-        normalize_particles(self.particle_cloud)
 
     @staticmethod
     def draw_random_sample(choices, probabilities, n):
@@ -304,15 +267,6 @@ class ParticleFilter:
         self.fix_map_to_odom_transform(msg)
 
     def initialize_particle_cloud(self, xy_theta=None):
-        """ Initialize the particle cloud.
-            Arguments
-            xy_theta: a triple consisting of the mean x, y, and theta (yaw) to initialize the
-                      particle cloud around.  If this input is ommitted, the odometry will be used """
-        if xy_theta == None:
-            xy_theta = convert_pose_to_xy_and_theta(self.odom_pose.pose)
-        self.particle_cloud = []
-        
-        #Uniform distribution over the bounding box defined by the map
         #define the box as the convex hull of the points
         perim = self.occupancy_field.convex_hull_points
         poly = Path(perim)
