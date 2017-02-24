@@ -22,6 +22,7 @@ import time
 import numpy as np
 import scipy as sp
 from scipy.stats import cauchy
+from scipy.ndimage.interpolation import affine_transform
 from numpy.random import random_sample
 from sklearn.neighbors import NearestNeighbors
 from occupancy_field import OccupancyField
@@ -107,7 +108,8 @@ class ParticleFilter:
         theta_cauchy_bounded = cauchy
         theta_cauchy_bounded.a = 0
         theta_cauchy_bounded.b = 720
-    
+
+
         self.xy_cauchy = lambda mu: xy_cauchy_bounded.rvs(loc=mu, scale=xy_cauchy_gamma)
         self.theta_cauchy = lambda mu: theta_cauchy_bounded.rvs(loc=mu, scale=theta_cauchy_gamma) % 360
         # Setup pubs and subs
@@ -218,8 +220,14 @@ class ParticleFilter:
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
 
-        self.normalize_particles()
+    def pol2cart(rho, phi):
+        x = rho * np.cos(phi)
+        y = rho * np.sin(phi)
+    return(x, y)
 
+    def rot_mat(theta):
+        rotate = np.array([cos[theta],sin[theta]],[-sin[theta],cos[theta]])
+    return rotate
 
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
@@ -231,6 +239,24 @@ class ParticleFilter:
         # call get_distance_to_closest_particle a bunch and store
         # normalize
         # multiply with particle weights
+
+        distance = enumerate(msg.ranges[])
+        cartesian = []
+        for i in distance:
+            cartesian.append(pol2cart[i])
+        distance = cartesian
+
+        for i in self.particle_cloud:
+            adjust = convert_pose_to_xy_and_theta[i]
+            rotation = rot-mat(theta)
+            translation = [adjust[0],adjust[2]]
+            for j in distance:
+                transform = affine_transform(distance(j),rotation,translation)
+                closest = get_closest_obstacle_distance(transform)
+            close = np.sum(closest)/len(np.sum(closest))
+            i = Particle(transform[0], transform[1], transform[2], close)
+
+        normalize_particles(self.particle_cloud)
 
     @staticmethod
     def draw_random_sample(choices, probabilities, n):
