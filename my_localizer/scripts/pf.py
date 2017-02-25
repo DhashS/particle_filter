@@ -229,16 +229,7 @@ class ParticleFilter:
             new_particle = Particle(x, y, theta, w=per_particle_prob)
             self.particle_cloud.append(new_particle)
             num_new_needed -= 1
-
-    def pol2cart(rho, phi):
-        x = rho * np.cos(phi)
-        y = rho * np.sin(phi)
-    return(x, y)
-
-    def rot_mat(theta):
-        rotate = np.array([cos[theta],sin[theta]],[-sin[theta],cos[theta]])
-    return rotate
-
+    
     def update_particles_with_laser(self, msg):
         """ Updates the particle weights in response to the scan contained in the msg """
         # TODO: implement this
@@ -249,24 +240,32 @@ class ParticleFilter:
         # call get_distance_to_closest_particle a bunch and store
         # normalize
         # multiply with particle weights
+        cartesian_cloud = np.array([(p.x, p.y) for p in self.laser_to_cloud(msg).points])
+        
+        for p in self.particle_cloud:
+            trans_x, trans_y, rot_theta = convert_pose_to_xy_and_theta(p.as_pose())
+            rot_matrix = np.array([[np.cos(rot_theta), -np.sin(rot_theta)],
+                                   [np.sin(rot_theta), np.cos(rot_theta)]])
+            tformed_pcloud = affine_transform(cartesian_cloud, rot_matrix, offset=[trans_x, trans_y])
 
-        distance = enumerate(msg.ranges[])
-        cartesian = []
-        for i in distance:
-            cartesian.append(pol2cart[i])
-        distance = cartesian
+            p.w *= np.sum([self.occupancy_field.get_closest_obstacle_distance(x, y) for x, y in tformed_pcloud.tolist()])/len(tformed_pcloud.tolist())
 
-        for i in self.particle_cloud:
-            adjust = convert_pose_to_xy_and_theta[i]
-            rotation = rot-mat(theta)
-            translation = [adjust[0],adjust[2]]
-            for j in distance:
-                transform = affine_transform(distance(j),rotation,translation)
-                closest = get_closest_obstacle_distance(transform)
-            close = np.sum(closest)/len(np.sum(closest))
-            i = Particle(transform[0], transform[1], transform[2], close)
+        self.normalize_particles()
 
-        normalize_particles(self.particle_cloud)
+    @staticmethod
+    def laser_to_cloud(msg):
+        scan = msg.ranges[:-1] #the last value is a repeated first value
+        angles = np.array(range(len(scan))) * 180/np.pi
+        xs = np.cos(angles) * scan
+        ys = np.sin(angles) * scan
+        points = [Point32(x,y) for x,y in zip(xs,ys) if not np.norm([x,y]) == 0.0] #drop all zero-distance readings
+        cloud = PointCloud(header=Header(frame_id="/base_laser_link",
+                                         stamp=msg.header.stamp),
+                           points=points,
+                           channels=ChannelFloat32(name="distance",
+                                                   values=[d for d in scan if not d == 0.0]))
+        return cloud
+
 
     @staticmethod
     def draw_random_sample(choices, probabilities, n):
