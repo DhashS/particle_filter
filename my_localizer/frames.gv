@@ -1,0 +1,14 @@
+digraph G {
+"camera_frame" -> "tag_6"[label="Broadcaster: /play_1488079900321222622\nAverage rate: 11.359 Hz\nMost recent transform: 1487281829.217 ( 806765.858 sec old)\nBuffer length: 0.264 sec\n"];
+"camera_frame" -> "tag_7"[label="Broadcaster: /play_1488079900321222622\nAverage rate: 6.828 Hz\nMost recent transform: 1487281833.785 ( 806761.289 sec old)\nBuffer length: 4.833 sec\n"];
+"odom" -> "base_link"[label="Broadcaster: /play_1488079900321222622\nAverage rate: 20.131 Hz\nMost recent transform: 1487281834.074 ( 806761.000 sec old)\nBuffer length: 4.967 sec\n"];
+"base_link" -> "base_laser_link"[label="Broadcaster: /play_1488079900321222622\nAverage rate: 20.118 Hz\nMost recent transform: 1487281834.094 ( 806760.980 sec old)\nBuffer length: 4.921 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1488088595.074"[ shape=plaintext ] ;
+ }->"camera_frame";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1488088595.074"[ shape=plaintext ] ;
+ }->"odom";
+}

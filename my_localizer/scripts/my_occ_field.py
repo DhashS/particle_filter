@@ -19,7 +19,6 @@ class OccupancyField(object):
 	ys = self.occupied_cells.T[0] + self.map.info.origin.position.y
 	self.occupied_cells = np.atleast_2d([xs,ys]).T
 	self.convex_hull = ConvexHull(self.occupied_cells)
-	print self.convex_hull.vertices
 
     def get_closest_obstacle_distance(self, x, y):
 	return np.min(np.linalg.norm(self.occupied_cells - np.array([x, y]), axis=1))
